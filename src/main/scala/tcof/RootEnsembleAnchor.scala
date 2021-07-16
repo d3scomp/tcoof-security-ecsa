@@ -1,7 +1,9 @@
 package tcof
 
 
-class RootEnsembleAnchor[EnsembleType <: RootEnsemble] private[tcof](val builder: () => EnsembleType) {
+class RootEnsembleAnchor[EnsembleType <: RootEnsemble] private[tcof](
+    val builder: () => EnsembleType, aspects: scala.collection.mutable.ListBuffer[EnsembleAspect]) {
+
   private var _solution: EnsembleType = _
 
   def instance: EnsembleType = _solution
@@ -11,7 +13,9 @@ class RootEnsembleAnchor[EnsembleType <: RootEnsemble] private[tcof](val builder
 
     // This is not needed per se because ensembles are discarded in each step anyway. However, component are not. We keep it here for uniformity with components.
     val solverModel = new SolverModel()
-    val config = new Config(solverModel)
+    val aspectProcessor = new EnsembleAspectProcessor(aspects)
+    val config = new Config(solverModel, aspectProcessor)
+
     for (stage <- InitStages.values) {
       _solution._init(stage, config)
     }

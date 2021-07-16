@@ -1,3 +1,3 @@
 package tcof
 
-class Config(val solverModel: SolverModel)
+class Config(val solverModel: SolverModel, val aspectProcessor: EnsembleAspectProcessor)

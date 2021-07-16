@@ -59,6 +59,13 @@ class TestScenario(scenarioParams: TestScenarioSpec) extends Model with ModelGen
 
     override def toString = s"Worker($id, $position, $capabilities)"
 
+    // method stubs used in aspects:
+    val isForeman = true
+    val isGuard = true
+    val isRepairman = true
+    val withAnomalousBehavior = true
+    def canRepair(component: Component) = true
+
     def isAt(room: Room) = room.positions.contains(position)
   }
 
@@ -112,7 +119,6 @@ class TestScenario(scenarioParams: TestScenarioSpec) extends Model with ModelGen
 
     override def toString = s"Shift($startTime, $endTime, $workPlace, $foreman, $workers, $standbys, $assignments)"
   }
-
 
   val factoryIds = (1 to scenarioParams.factoriesCount).map(idx => f"factory$idx%02d")
 
@@ -326,8 +332,106 @@ class TestScenario(scenarioParams: TestScenarioSpec) extends Model with ModelGen
   }
 
   val factoryTeams = factoriesMap.values.map(factory => root(new FactoryTeam(factory)))
-}
 
+  object Pattern1a extends EnsembleAspect {
+
+    override type SubjectType = Worker
+    override type ObjectType = Component
+
+    spec {
+      (worker, component) =>
+        pointcut {
+          existsAllowRule(worker, ActionSelection.ANY, component) &&
+            component.hasFailure &&
+            worker.isForeman
+        }
+        insert_rules {
+          allow(worker, ActionSelection.ALL, component)
+        }
+    }
+  }
+
+  object Pattern1b extends EnsembleAspect {
+
+    override type SubjectType = Worker
+    override type ObjectType =  Component
+
+    spec {
+      (worker, _) =>
+        pointcut {
+          !existsAllowRule(worker, ActionSelection.ANY, ObjectSelection.ANY) &&
+            worker.withAnomalousBehavior
+        }
+        insert_rules {
+          deny(worker, ActionSelection.ALL, ObjectSelection.ANY)
+        }
+    }
+
+  }
+
+  object Pattern2a extends EnsembleAspect {
+
+    override type SubjectType = Worker
+    override type ObjectType =  Component
+
+    spec {
+      (worker, _) =>
+        pointcut {
+          existsAllowRule(worker, ActionSelection.ANY, ObjectSelection.ANY) &&
+            worker.withAnomalousBehavior
+        }
+        delete_rules {
+          allow(worker, ActionSelection.ANY, ObjectSelection.ANY)
+        }
+    }
+
+  }
+
+  object Pattern2b extends EnsembleAspect {
+
+    override type SubjectType = Worker
+    override type ObjectType =  Component
+
+    spec {
+      (worker, component) =>
+        pointcut {
+          existsDenyRule(worker, ActionSelection.ANY, ObjectSelection.ANY) &&
+            component.hasFailure &&
+            worker.isRepairman &&
+            worker.canRepair(component)
+        }
+        delete_rules {
+          deny(worker, ActionSelection.ANY, component)
+        }
+    }
+
+  }
+
+  object Pattern3 extends EnsembleAspect {
+
+    override type SubjectType = Worker
+    override type ObjectType = Component
+
+    spec {
+      (worker, component) =>
+        pointcut {
+          component.getValidator.hasFailure &&  // validator for a component is e.g. a card reader
+          worker.isGuard
+        }
+        insert_rules {
+          allow(worker, "validateAccess", component)
+        }
+    }
+
+  }
+
+  aspect(Pattern1a)
+  aspect(Pattern1b)
+  aspect(Pattern2a)
+  aspect(Pattern2b)
+  aspect(Pattern3)
+
+}
 
 
 object TestScenario {
@@ -371,9 +475,11 @@ object TestScenario {
 
     for (measurePhase <- List(0, 1)) {
       for (factoriesCount <- List(1)) {
-        for (workersLateRatio <- List(0.05, 0.1, 0.15, 0.2)) {
+//        for (workersLateRatio <- List(0.05, 0.1, 0.15, 0.2)) {
+        for (workersLateRatio <- List(0.05)) {
           breakable {
-            for (workersPerWorkplaceCount <- 50.to(500, 50)) {
+//            for (workersPerWorkplaceCount <- 50.to(500, 50)) {
+            for (workersPerWorkplaceCount <- 50.to(50, 40)) {
               val scenarioSpec = createScenarioSpec(factoriesCount, workersPerWorkplaceCount, workersLateRatio, measurePhase)
 
               val scenario = new TestScenario(scenarioSpec)
